@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Collections;
 using UnityEngine;
 
@@ -19,6 +20,9 @@ public class PlayerIgniteAbility : MonoBehaviour
     [Header("VFX")]
     public GameObject ignitePulseVFXPrefab;
     public float vfxHeightOffset = 0f;
+
+    [Header("Damage")]
+    public float wolfDamage = 20f;
 
     private float _nextUseTime = 0f;
 
@@ -68,11 +72,18 @@ public class PlayerIgniteAbility : MonoBehaviour
     {
         Collider[] hits = Physics.OverlapSphere(castPosition, radius, hitLayers);
 
-        //Ignite output signal
+        HashSet<WolfBehavior> damagedWolves = new HashSet<WolfBehavior>();           //Prevents multi-trigger collision
 
         for (int i = 0; i < hits.Length; i++)
         {
             hits[i].SendMessage("Ignite", SendMessageOptions.DontRequireReceiver);
+
+            WolfBehavior wolf = hits[i].GetComponentInParent<WolfBehavior>();
+            if (wolf != null && !damagedWolves.Contains(wolf))
+            {
+                damagedWolves.Add(wolf);
+                wolf.TakeDamage(wolfDamage, castPosition);
+            }
         }
     }
 }

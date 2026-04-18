@@ -7,7 +7,7 @@ using UnityEngine.AI;
 public class NewMonoBehaviourScript : MonoBehaviour
 {
 
-public enum State { Idle, Patrol, Search, Chase }
+public enum State { Idle, Patrol, Search, Chase, Hunt }
 
 [Header("Scene References")]
 public GameObject character;
@@ -20,12 +20,27 @@ public float idleThreshold = 1.0f;
 public float searchThreshold = 3.0f;
 public float viewRadius = 10f;
 public float viewAngle = 60f;
+public float huntTime= 8.0f;
+public float huntDistance = 2f;
+public float huntThreshold = 5.0f;
 private int waypointIndex = 0;
+private WolfBehavior wolfBehavior;
+
+int GetRandomWaypointIndex()
+{
+    if (waypoints == null || waypoints.Length == 0)
+        return 0;
+
+    return UnityEngine.Random.Range(0, waypoints.Length);
+}
 
 NavMeshAgent agent;
 
 bool viewEnabled = false;
 bool canSeePlayer = false;
+bool soundHeard = false;
+
+Vector3 soundLocation = Vector3.zero;
 
 float idleTime = 0.0f;
 float searchTime = 0.0f;
@@ -33,12 +48,18 @@ float searchTime = 0.0f;
 State state;
 
 private void Awake()
-    {
-        agent = GetComponent<NavMeshAgent>();
+{
+    agent = GetComponent<NavMeshAgent>();
 
-        state = State.Idle;
-        idleTime = Time.time;
+    wolfBehavior = GetComponent<WolfBehavior>();
+    if (wolfBehavior != null)
+    {
+        wolfBehavior.OnSoundTriggered.AddListener(OnWolfHowlHeard);
     }
+
+    state = State.Idle;
+    idleTime = Time.time;
+}
 
 private void Update()
     {
@@ -56,7 +77,25 @@ private void Update()
             case State.Chase:
                 Chase();
                 break;
+            case State.Hunt:
+                Hunt();
+                break;
         }
+    }
+
+    void OnWolfHowlHeard(WolfBehavior sourceWolf)
+    {
+        if (sourceWolf == null)
+            return;
+
+        soundHeard = true;
+        soundLocation = sourceWolf.transform.position;
+    }
+    void EnterHunt()
+    {
+        state = State.Hunt;
+        huntTime = Time.time;
+        soundHeard = false;
     }
     void Idle()
     {
@@ -67,9 +106,14 @@ private void Update()
         if (timeElapsed >= idleThreshold)
         {
             state = State.Patrol;
-            waypointIndex++;
-            if (waypointIndex >= waypoints.Length) waypointIndex = 0;
+            waypointIndex = GetRandomWaypointIndex();
         }
+
+        if (soundHeard)
+        {
+            EnterHunt();
+        }
+        
     }
 
     void Patrol()
@@ -85,8 +129,7 @@ private void Update()
         float distance = Vector3.Distance(transform.position, waypoint);
         if (Vector3.Distance(transform.position, waypoint) < waypointThreshold)
         {
-            waypointIndex++;
-            if (waypointIndex >= waypoints.Length) waypointIndex = 0;
+            waypointIndex = GetRandomWaypointIndex();
             // Example of leaky state code. Idle state needs the time when entered, but that is set in Patrol, and must be set every time
             state = State.Idle;
             idleTime = Time.time;
@@ -94,6 +137,11 @@ private void Update()
         if (canSeePlayer)
         {
             state = State.Chase;
+        }
+
+        if (soundHeard)
+        {
+            EnterHunt();
         }
         
     }
@@ -127,6 +175,31 @@ private void Update()
         {
             state = State.Search;
             searchTime = Time.time;
+        }
+    }
+
+    void Hunt()
+    {
+        agent.SetDestination(soundLocation);
+
+        float distance = Vector3.Distance(transform.position, soundLocation);
+        
+        if(distance <= huntDistance)
+        {
+            float timeElapsed = Time.time - huntTime;
+            if(timeElapsed >= huntThreshold)
+            {
+                state = State.Patrol;
+            }
+        }
+        else
+        {
+            huntTime = Time.time;
+        }
+
+        if (canSeePlayer)
+        {
+            state = State.Chase;
         }
     }
 
