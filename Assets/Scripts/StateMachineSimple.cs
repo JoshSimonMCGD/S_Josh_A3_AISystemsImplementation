@@ -7,62 +7,76 @@ using UnityEngine.AI;
 public class NewMonoBehaviourScript : MonoBehaviour
 {
 
-public enum State { Idle, Patrol, Search, Chase, Hunt }
+    public enum State { Idle, Patrol, Search, Chase, Hunt, Flee }
 
-[Header("Scene References")]
-public GameObject character;
+    [Header("Scene References")]
+    public GameObject character;
 
-public Transform[] waypoints;
+    public Transform[] waypoints;
 
-[Header("Config Values")]
-public float waypointThreshold = 0.5f;
-public float idleThreshold = 1.0f;
-public float searchThreshold = 3.0f;
-public float viewRadius = 10f;
-public float viewAngle = 60f;
-public float huntTime= 8.0f;
-public float huntDistance = 2f;
-public float huntThreshold = 5.0f;
-private int waypointIndex = 0;
-private WolfBehavior wolfBehavior;
+    [Header("Config Values")]
+    public float waypointThreshold = 0.5f;
+    public float idleThreshold = 1.0f;
+    public float searchThreshold = 3.0f;
+    public float viewRadius = 10f;
+    public float viewAngle = 60f;
+    public float huntTime= 8.0f;
+    public float huntDistance = 2f;
+    public float huntThreshold = 5.0f;
+    private int waypointIndex = 0;
+    private WolfBehavior wolfBehavior;
+    Vector3 fleeLocation = Vector3.zero;
+    public float fleeHealthThreshold = 0.25f;
+    public float fleeThreshold = 1.5f;
 
-int GetRandomWaypointIndex()
-{
-    if (waypoints == null || waypoints.Length == 0)
-        return 0;
-
-    return UnityEngine.Random.Range(0, waypoints.Length);
-}
-
-NavMeshAgent agent;
-
-bool viewEnabled = false;
-bool canSeePlayer = false;
-bool soundHeard = false;
-
-Vector3 soundLocation = Vector3.zero;
-
-float idleTime = 0.0f;
-float searchTime = 0.0f;
-
-State state;
-
-private void Awake()
-{
-    agent = GetComponent<NavMeshAgent>();
-
-    wolfBehavior = GetComponent<WolfBehavior>();
-    if (wolfBehavior != null)
+    int GetRandomWaypointIndex()   // Randomizes patrol
     {
-        wolfBehavior.OnSoundTriggered.AddListener(OnWolfHowlHeard);
+        if (waypoints == null || waypoints.Length == 0)
+            return 0;
+
+        return UnityEngine.Random.Range(0, waypoints.Length);
     }
 
-    state = State.Idle;
-    idleTime = Time.time;
-}
+    NavMeshAgent agent;
 
-private void Update()
+    bool viewEnabled = false;
+    bool canSeePlayer = false;
+    bool soundHeard = false;
+    bool hasFled = false;
+
+    Vector3 soundLocation = Vector3.zero;
+
+    float idleTime = 0.0f;
+    float searchTime = 0.0f;
+
+    Animator anim;
+
+    State state;
+
+    private void Awake()
     {
+        agent = GetComponent<NavMeshAgent>();
+
+        anim = GetComponent<Animator>();
+
+
+        wolfBehavior = GetComponent<WolfBehavior>();    // reference for Wolf audio listener
+        if (wolfBehavior != null)
+        {
+            wolfBehavior.OnSoundTriggered.AddListener(OnWolfHowlHeard);
+        }
+
+        state = State.Idle;
+        idleTime = Time.time;
+    }
+
+    private void Update()
+    {
+        if (wolfBehavior != null && wolfBehavior.GetHealthPercent() <= fleeHealthThreshold && state != State.Flee)  //Flee trigger referencing Wolf HP
+        {
+            EnterFlee();
+        }
+
         switch (state)
         {
             case State.Idle:
@@ -80,6 +94,30 @@ private void Update()
             case State.Hunt:
                 Hunt();
                 break;
+            case State.Flee:
+                Flee();
+                break;
+        }
+    }
+
+    void EnterFlee()    // Flee state
+    {
+        hasFled = true;
+        state = State.Flee;
+
+        int randomIndex = GetRandomWaypointIndex();
+        fleeLocation = waypoints[randomIndex].position;
+    }
+
+    void Flee()
+    {
+        agent.SetDestination(fleeLocation);
+
+        float distance = Vector3.Distance(transform.position, fleeLocation);
+        if (distance <= fleeThreshold)
+        {
+            state = State.Idle;
+            idleTime = Time.time;
         }
     }
 
@@ -91,7 +129,7 @@ private void Update()
         soundHeard = true;
         soundLocation = sourceWolf.transform.position;
     }
-    void EnterHunt()
+    void EnterHunt()     //Hunt state is new and not on the documents. It was a design of in the moment inspiration
     {
         state = State.Hunt;
         huntTime = Time.time;
@@ -146,7 +184,7 @@ private void Update()
         
     }
 
-    void Search()
+    void Search()  // Not used
     {
         agent.SetDestination(transform.position + transform.forward + transform.right);
         float elapsedSearchTime = Time.time - searchTime;
@@ -178,7 +216,7 @@ private void Update()
         }
     }
 
-    void Hunt()
+    void Hunt()     // Goes to sound source for an alloted amount of time
     {
         agent.SetDestination(soundLocation);
 

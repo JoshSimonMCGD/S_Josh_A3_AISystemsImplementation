@@ -21,6 +21,15 @@ public class WolfBehavior : MonoBehaviour
     [Header("UI")]
     [SerializeField] private Slider healthBar;
 
+    // Gets health for flee state trigger
+    public float GetHealthPercent()
+    {
+        if (maxHealth <= 0f)
+            return 0f;
+
+        return currentHealth / maxHealth;
+    }
+
     private AudioSource source;
 
     private Vector3 knockbackVelocity;
@@ -28,10 +37,14 @@ public class WolfBehavior : MonoBehaviour
 
     private bool isDead = false;
 
+    private Animator anim;
+
     private void Awake()
     {
-        source = GetComponent<AudioSource>();
-        currentHealth = maxHealth;
+        source = GetComponent<AudioSource>();   
+        anim = GetComponent<Animator>();
+
+        currentHealth = maxHealth;  // For a healthbar I never managed to get in
         UpdateHealthBar();
     }
 
@@ -39,12 +52,12 @@ public class WolfBehavior : MonoBehaviour
     {
         if (knockbackTimer > 0f)
         {
-            transform.position += knockbackVelocity * Time.deltaTime;
+            transform.position += knockbackVelocity * Time.deltaTime;  //Knockback for wolf hit
             knockbackTimer -= Time.deltaTime;
         }
     }
 
-    public void TakeDamage(float damageAmount, Vector3 damageSourcePosition)
+    public void TakeDamage(float damageAmount, Vector3 damageSourcePosition)  // damage and death checks
     {
         if (isDead)
             return;
@@ -54,6 +67,11 @@ public class WolfBehavior : MonoBehaviour
 
         currentHealth -= damageAmount;
         currentHealth = Mathf.Clamp(currentHealth, 0f, maxHealth);
+
+        if (anim != null)
+        {
+            anim.SetTrigger("Hit");
+        }
 
         ApplyKnockback(damageSourcePosition);
 
@@ -78,7 +96,7 @@ public class WolfBehavior : MonoBehaviour
         knockbackTimer = knockbackDuration;
     }
 
-    public void Howl()
+    public void Howl()          //Trigger for 'Hunt' state
     {
         if (source != null)
         {
@@ -100,7 +118,7 @@ public class WolfBehavior : MonoBehaviour
         }
     }
 
-    public void ReceiveHowl(WolfBehavior sourceWolf)
+    public void ReceiveHowl(WolfBehavior sourceWolf)   //Receptor for other wolve's howls
     {
         OnSoundTriggered?.Invoke(sourceWolf);
     }
@@ -114,14 +132,21 @@ public class WolfBehavior : MonoBehaviour
         }
     }
 
-    [SerializeField] private float deathDelay = 0.2f;
+    [SerializeField] private float deathDelay = 0.2f;  // delay for death for animations
 
     void Die()
     {
-        Destroy(gameObject, deathDelay);
+        isDead = true;
+
+        if (anim != null)
+        {
+            anim.SetBool("Dead", true);
+        }
+
+        Destroy(gameObject, 2f);
     }
 
-    private void OnDrawGizmosSelected()
+    private void OnDrawGizmosSelected()  //Audio Radius visual
     {
         Gizmos.color = Color.yellow;
         Gizmos.DrawWireSphere(transform.position, howlHearingRadius);
